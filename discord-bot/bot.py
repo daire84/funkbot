@@ -369,7 +369,7 @@ async def on_voice_state_update(member, before, after):
         logger.warning(f"No text channel available in {guild.name}")
         return
     
-    # User joined a voice channel
+    # User joined a voice channel (from nothing)
     if before.channel is None and after.channel is not None:
         # Store session start time
         session_key = f"{guild.id}_{member.id}_{after.channel.id}"
@@ -393,14 +393,13 @@ async def on_voice_state_update(member, before, after):
         try:
             message = await channel.send(embed=embed, delete_after=300)
             await message.add_reaction("👋")
-            logger.info(f"Announced leave: {member.display_name} <- {before.channel.name} ({format_duration(duration)})")
             logger.info(f"Announced join: {member.display_name} -> {after.channel.name}")
         except discord.errors.Forbidden:
-            logger.error(f"No permission to send messages in {channel.name}")
+            logger.error(f"No permission to send messages in {channel.name if channel else 'unknown channel'}")
         except Exception as e:
             logger.error(f"Failed to announce join: {e}")
     
-    # User left a voice channel
+    # User left a voice channel (to nothing)
     elif before.channel is not None and after.channel is None:
         session_key = f"{guild.id}_{member.id}_{before.channel.id}"
         join_time = active_sessions.pop(session_key, None)
@@ -427,7 +426,40 @@ async def on_voice_state_update(member, before, after):
                     logger.info(f"Announced leave: {member.display_name} <- {before.channel.name} ({format_duration(duration)})")
                 except Exception as e:
                     logger.error(f"Failed to announce leave: {e}")
-
+    
+    # User switched voice channels (from one channel to another)
+    elif before.channel is not None and after.channel is not None and before.channel != after.channel:
+        # Handle channel switch as both leave and join
+        session_key_old = f"{guild.id}_{member.id}_{before.channel.id}"
+        join_time = active_sessions.pop(session_key_old, None)
+        
+        if join_time:
+            duration = await log_voice_leave(member, before.channel, join_time)
+            
+            if duration and duration > 10:  # Only announce if they were there for more than 10 seconds
+                embed = discord.Embed(
+                    description=f"🔄 **{member.display_name}** moved from **{before.channel.name}** to **{after.channel.name}** (was there {format_duration(duration)})",
+                    color=0xffa500,
+                    timestamp=datetime.now()
+                )
+                embed.set_thumbnail(url=member.display_avatar.url)
+                embed.set_footer(text="FunkBot")
+                
+                try:
+                    message = await channel.send(embed=embed, delete_after=240)
+                    await message.add_reaction("🔄")
+                    logger.info(f"Announced channel switch: {member.display_name} {before.channel.name} -> {after.channel.name} ({format_duration(duration)})")
+                except Exception as e:
+                    logger.error(f"Failed to announce channel switch: {e}")
+        
+        # Now handle the new channel join
+        session_key_new = f"{guild.id}_{member.id}_{after.channel.id}"
+        active_sessions[session_key_new] = datetime.now()
+        
+        session_id = await log_voice_join(member, after.channel)
+        
+        # Don't announce the join part of a switch to avoid spam
+        logger.info(f"Logged channel switch join: {member.display_name} -> {after.channel.name}")
 # Slash Commands
 @bot.tree.command(name="stats", description="View your voice chat statistics")
 async def stats(interaction: discord.Interaction, user: Optional[discord.Member] = None):
