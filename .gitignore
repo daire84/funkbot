@@ -1,0 +1,36 @@
+# Environment and secrets
+.env
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# Data directories (comment out if you want to track data)
+data/
+logs/
+
+# Docker
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+*-backup-*/
+*.backup
+*.bak
+*.old
+*.orig

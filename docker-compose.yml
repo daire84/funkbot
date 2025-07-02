@@ -1,0 +1,87 @@
+version: "3.8"
+
+services:
+  funkbot:
+    build: ./discord-bot
+    container_name: funkbot
+    hostname: funkbot
+    environment:
+      # Discord Configuration
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      
+      # Database Configuration  
+      - DB_HOST=${DB_HOST:-mariadb}
+      - DB_NAME=${DB_NAME:-funkbot_db}
+      - DB_USER=${DB_USER:-funkbot_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      
+      # Bot Configuration
+      - DELETE_AFTER_SECONDS=${DELETE_AFTER_SECONDS:-300}
+      - MIN_LEAVE_DURATION=${MIN_LEAVE_DURATION:-60}
+      - DAILY_LEADERBOARD=${DAILY_LEADERBOARD:-true}
+      - ACHIEVEMENT_NOTIFICATIONS=${ACHIEVEMENT_NOTIFICATIONS:-true}
+      
+      # System Configuration
+      - TZ=${TZ:-Europe/Dublin}
+      - PUID=${PUID:-99}
+      - PGID=${PGID:-100}
+      
+      # Optional: Home Assistant Integration
+      - HA_URL=${HA_URL}
+      - HA_TOKEN=${HA_TOKEN}
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+    volumes:
+      # Persistent data storage
+      - ${CONFIG_BASE}/funkbot/data:/app/data
+      - ${CONFIG_BASE}/funkbot/logs:/app/logs
+      
+      # Optional: Custom configuration files
+      - ${CONFIG_BASE}/funkbot/config:/app/config:ro
+      
+      # Timezone data
+      - /etc/localtime:/etc/localtime:ro
+      
+    networks:
+      - netfunk
+    
+    restart: unless-stopped
+    
+    # Resource limits (perfect for your N5105)
+    mem_limit: 128M
+    mem_reservation: 64M
+    cpus: 0.15
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    
+    # Unraid labels
+    labels:
+      - net.unraid.docker.managed=composeman
+      - net.unraid.docker.webui=
+      - net.unraid.docker.icon=https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/discord.png
+      - net.unraid.docker.shell=sh
+      
+      # Custom labels for organization
+      - funkbot.service=discord-bot
+      - funkbot.version=1.0.0
+      - funkbot.description=Enhanced Discord voice notifications bot
+      
+    # Logging configuration
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  netfunk:
+    external: true
+    name: netfunk
